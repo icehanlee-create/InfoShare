@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<!-- 就業資訊公告欄 前端｜版本：v2.1.2（搭配 Code.gs v2.1.0 使用）
+<!-- 就業資訊公告欄 前端｜版本：v2.2.0（搭配 Code.gs v2.2.0 使用）
      v2.0.0 初版：置頂公告、逐日日曆頁、縣市／類型篩選
      v2.1.0 縣市標籤旁加註行政區（用猜的會加問號並用虛線標示）；新增月曆導覽，點日期跳到當天
      v2.1.1 手機上比較好用：月曆點日期改成「篩選成當天」，不用再捲動找卡片；再點一次或按「顯示全部」取消
-     v2.1.2 沒有公告時，整個「公告」區塊（含標題）完全不顯示，不再留空區塊或提示文字 -->
+     v2.1.2 沒有公告時，整個「公告」區塊（含標題）完全不顯示，不再留空區塊或提示文字
+     v2.2.0 台灣就業通的活動卡片多一行職缺摘要，可展開看各公司職缺（薪資、地點、學歷經歷、人數），不用點進官網 -->
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
@@ -187,10 +188,42 @@
 
   footer { margin-top: 48px; font-size: .8rem; color: var(--muted); }
 
+  /* ---------- 活動：職缺摘要＋展開（v2.2.0） ---------- */
+  .jobs { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 10px; }
+  .jobs-sum { margin: 0 0 8px; font-size: .92rem; }
+  .jobs-sum strong { font-variant-numeric: tabular-nums; }
+  .jobs details > summary {
+    list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    font-size: .9rem; font-weight: 700; color: var(--navy);
+    border: 1px solid var(--navy); border-radius: 999px; padding: 4px 14px;
+  }
+  .jobs details > summary::-webkit-details-marker { display: none; }
+  .jobs details > summary .chev { transition: transform .2s; }
+  .jobs details[open] > summary .chev { transform: rotate(90deg); }
+  .jobs details[open] > summary { background: var(--navy); color: #fff; }
+  .co { margin-top: 14px; }
+  .co-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding-bottom: 4px; border-bottom: 2px solid var(--ink); }
+  .co-name { font-weight: 700; }
+  .co-ind { font-size: .8rem; color: var(--muted); }
+  .co-n { margin-left: auto; font-size: .8rem; color: var(--muted); }
+  .job { display: grid; grid-template-columns: 1fr auto; gap: 0 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .job:last-child { border-bottom: 0; }
+  .job-t { font-weight: 500; }
+  .job-t a { color: var(--ink); text-decoration: none; }
+  .job-t a:hover { text-decoration: underline; }
+  .job-d { grid-column: 1 / -1; font-size: .82rem; color: var(--muted); }
+  .pay { justify-self: end; align-self: start; font-size: .88rem; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; padding: 0 8px; border-radius: 4px; background: #E6ECF4; color: var(--navy); }
+  .pay small { font-weight: 500; font-size: .75rem; margin-right: 4px; }
+  .pay.hour { background: #FCEFD6; color: #7A4A00; }
+  .pay.other { background: #EEF1F5; color: var(--ink); }
+  .jobs-foot { margin: 12px 0 0; font-size: .82rem; color: var(--muted); }
+
   @media (max-width: 560px) {
     html { font-size: 16px; }
     .day { grid-template-columns: 68px 1fr; gap: 10px; }
     .leaf .d { font-size: 2rem; }
+    .job { grid-template-columns: 1fr; }
+    .pay { justify-self: start; margin-top: 2px; }
     .notice details > summary { grid-template-columns: 1fr auto; }
     .notice .n-date { grid-column: 1 / -1; }
   }
@@ -253,7 +286,7 @@
 <script>
 /* 若這個 HTML 放在 GAS 以外的地方（例如 GitHub Pages、Google Sites 內嵌），
    請填入 Web App 部署網址，例如 https://script.google.com/macros/s/xxxx/exec */
-const API_URL = 'https://script.google.com/macros/s/AKfycbwctcAKI6zZwZ8UfG9tvivFMaQY1pD36ffh_EKmzYRikTEjPLxQ1i_uPQkYU0K6BfjNPg/exec';
+const API_URL = '';
 
 const state = { data: null, city: '', type: '', showPast: false, calMonth: '', calFilterDate: null };
 const WEEK = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
@@ -455,7 +488,61 @@ function item(e, past) {
       ${e.org ? `<span>承辦 ${esc(e.org)}</span>` : ''}
       ${e.url ? `<a href="${attr(e.url)}" target="_blank" rel="noopener">查看詳細資訊</a>` : ''}
     </p>
+    ${jobsBlock(e)}
   </li>`;
+}
+
+/* ---------- 職缺摘要＋展開（v2.2.0） ---------- */
+const PAY_LABEL = { M: '月薪', H: '時薪', D: '日薪', Y: '年薪' };
+const JOB_URL = 'https://job.taiwanjobs.gov.tw/internet/Index/JobDetail.aspx?R2=15';
+
+function jobsBlock(e) {
+  let data;
+  try { data = e.jobs ? JSON.parse(e.jobs) : null; } catch (err) { return ''; }
+  const cos = (data && data.c) || [];
+  if (!cos.length) return '';
+
+  const all = cos.flatMap(c => c[3] || []);
+  const low = k => {
+    const nums = all.filter(j => j[1] === k).map(j => +String(j[2]).replace(/,/g, '').match(/\d+/)).filter(n => n > 0);
+    return nums.length ? Math.min(...nums).toLocaleString('en-US') : '';
+  };
+  const pays = [['M', low('M')], ['H', low('H')]].filter(p => p[1]).map(p => `${PAY_LABEL[p[0]]} <strong>${p[1]}</strong> 起`);
+  const sum = `<strong>${cos.length}</strong> 家公司、<strong>${all.length}</strong> 個職缺${pays.length ? '，' + pays.join('、') : ''}`;
+
+  const req = (edu, exp) => (edu === '不拘' && exp === '不拘') ? '學歷經歷不拘'
+    : [edu && `學歷${edu}`, exp && `經歷${exp}`].filter(Boolean).join('、');
+
+  const list = cos.map(([name, ind, emp, jobs]) => `
+    <section class="co">
+      <div class="co-head"><span class="co-name">${esc(name)}</span>${ind ? `<span class="co-ind">${esc(ind)}</span>` : ''}<span class="co-n">${(jobs || []).length} 個職缺</span></div>
+      ${(jobs || []).map(([t, k, pay, loc, edu, exp, n, hire]) => {
+        const title = emp && hire
+          ? `<a href="${JOB_URL}&EMPLOYER_ID=${encodeURIComponent(emp)}&HIRE_ID=${encodeURIComponent(hire)}" target="_blank" rel="noopener">${esc(t)}</a>`
+          : esc(t);
+        const cls = k === 'H' ? ' hour' : k === 'M' ? '' : ' other';
+        const detail = [loc, req(edu, exp), n && `徵 ${n} 人`].filter(Boolean).map(esc).join('，');
+        return `<div class="job">
+          <span class="job-t">${title}</span>
+          ${pay ? `<span class="pay${cls}">${PAY_LABEL[k] ? `<small>${PAY_LABEL[k]}</small>` : ''}${esc(pay)}</span>` : ''}
+          ${detail ? `<span class="job-d">${detail}</span>` : ''}
+        </div>`;
+      }).join('')}
+    </section>`).join('');
+
+  const firms = +e.firms || 0;
+  const notes = [];
+  if (data.cut || firms > cos.length) notes.push(`官網列出${firms > cos.length ? ` ${firms} 家` : '更多'}公司，這裡只放得下 ${cos.length} 家，完整清單請點「查看詳細資訊」。`);
+  notes.push(`職缺資料${e.jobsAt ? `抓取於 ${fmtShort(e.jobsAt)}` : '每天早上更新'}，最新內容以台灣就業通為準。`);
+
+  return `<div class="jobs">
+    <p class="jobs-sum">${sum}</p>
+    <details>
+      <summary><span class="chev" aria-hidden="true">›</span>看 ${cos.length} 家公司的職缺</summary>
+      ${list}
+      <p class="jobs-foot">${notes.join('<br>')}</p>
+    </details>
+  </div>`;
 }
 
 /* ---------- 篩選 ---------- */
@@ -508,6 +595,7 @@ const DEMO = {
     { city: '新北市', district: '', type: '聯合徵才', date: '2026-10-13', time: '10:00–14:00', title: '115/10/13(二)10:00-14:00【新北市聯合徵才活動-蘆洲長安市民活動中心】', place: '蘆洲長安市民活動中心', address: '', org: '', firms: '', url: 'https://ilabor.ntpc.gov.tw/cloud/GoodJob/activities_content/1101119058' },
     { city: '新北市', district: '三重區', type: '就業博覽會', date: '2026-10-17', time: '10:00–15:00', title: '【2026新北市就業博覽會-三重綜合體育館】', place: '三重綜合體育館', address: '新北市三重區新北大道一段2號 (近捷運菜寮站3號出口)', org: '汐止就業服務站', firms: '70', url: 'https://job.taiwanjobs.gov.tw/internet/jobwanted/JobOpeningDetail2.aspx?luk=1108080' },
     { city: '臺北市', district: '中正區', type: '就業博覽會', date: '2026-10-17', time: '10:30–16:00', title: '115年10月17日「點亮職涯南瓜燈✦照亮青年求職路」就業博覽會', place: '臺北車站1樓車站大廳', address: '台北市中正區北平西路三號', org: '臺北市就業服務處', firms: '51', url: 'https://job.taiwanjobs.gov.tw/internet/jobwanted/JobOpeningDetail2.aspx?luk=1109462' },
+    {"city": "臺北市", "district": "信義區", "type": "現場徵才", "date": "2026-11-19", "time": "14:00–16:00", "title": "信義就業服務站115/11/19(四)辦理現場徵才活動", "place": "信義就業服務站", "address": "台北市信義區福德街86號8樓【廣慈博愛園區信義區行政大樓】", "org": "信義就業服務站", "firms": "", "url": "https://job.taiwanjobs.gov.tw/internet/jobwanted/JobOpeningDetail2.aspx?luk=1110105", "source": "台灣就業通", "jobs": "{\"c\":[[\"和德昌股份有限公司\",\"餐館\",\"1280\",[[\"正職服務員莊敬門市\",\"M\",\"29,500–32,000\",\"台北市信義區\",\"不拘\",\"不拘\",\"10\",\"14781903\"],[\"計時服務員莊敬門市\",\"M\",\"29,500–32,000\",\"台北市信義區\",\"不拘\",\"不拘\",\"10\",\"14781899\"]]],[\"臺北市立聯合醫院\",\"醫院\",\"469825\",[[\"約用技術士護理科\",\"M\",\"40,000 以上\",\"台北市南港區\",\"不拘\",\"不拘\",\"4\",\"14781869\"],[\"照顧服務員護理科\",\"M\",\"35,620–38,620\",\"台北市南港區\",\"國小\",\"不拘\",\"5\",\"14781867\"],[\"部分工時庶務工友護理科\",\"H\",\"196 以上\",\"台北市南港區\",\"國小\",\"不拘\",\"1\",\"14781863\"]]],[\"台灣頂巧餐飲事業股份有限公司\",\"餐館\",\"1169136\",[[\"儲備幹部\",\"M\",\"38,000–45,000\",\"台北市\",\"高職\",\"不拘\",\"8\",\"14781829\"],[\"計時人員\",\"H\",\"196–200\",\"台北市\",\"不拘\",\"不拘\",\"6\",\"14781815\"],[\"正職人員\",\"M\",\"32,000 以上\",\"台北市\",\"高職\",\"不拘\",\"10\",\"14781803\"]]],[\"錢櫃企業股份有限公司-忠孝分公司\",\"視聽及視唱業\",\"118098\",[[\"時薪人員\",\"H\",\"196–216\",\"台北市大安區\",\"高中\",\"不拘\",\"10\",\"14781801\"],[\"清潔人員\",\"M\",\"31,900–37,900\",\"台北市大安區\",\"國中\",\"不拘\",\"5\",\"14781793\"],[\"吧檯夜正\",\"M\",\"37,900 以上\",\"台北市大安區\",\"高中\",\"不拘\",\"2\",\"14781787\"],[\"吧檯日正\",\"M\",\"31,900 以上\",\"台北市大安區\",\"高中\",\"不拘\",\"3\",\"14781785\"],[\"中班正職\",\"M\",\"42,900 以上\",\"台北市大安區\",\"高中\",\"不拘\",\"6\",\"14781773\"],[\"夜班正職\",\"M\",\"37,900 以上\",\"台北市大安區\",\"高中\",\"不拘\",\"6\",\"14781765\"],[\"日班正職\",\"M\",\"31,900 以上\",\"台北市大安區\",\"高中\",\"不拘\",\"5\",\"14781755\"]]],[\"貳樓餐飲股份有限公司\",\"餐館\",\"1113909\",[[\"後場兼職\",\"H\",\"215–250\",\"台北市\",\"不拘\",\"不拘\",\"20\",\"14781897\"],[\"前場兼職\",\"H\",\"200–235\",\"台北市\",\"不拘\",\"不拘\",\"20\",\"14781893\"],[\"後場正職\",\"M\",\"38,000–42,000\",\"台北市\",\"不拘\",\"不拘\",\"20\",\"14781889\"],[\"前場正職\",\"M\",\"36,000–40,000\",\"台北市\",\"不拘\",\"不拘\",\"20\",\"14781883\"],[\"儲備幹部\",\"M\",\"44,000 以上\",\"台北市\",\"不拘\",\"不拘\",\"10\",\"14781875\"]]],[\"臺北醫學大學附設臺北市私立北醫創齡社區長照機構\",\"社區式長期照顧服務業\",\"2611387\",[[\"照顧服務員\",\"M\",\"32,960–33,960\",\"台北市信義區\",\"不拘\",\"不拘\",\"5\",\"14781851\"]]]]}", "jobsAt": "2026-11-16"},
   ],
 };
 
