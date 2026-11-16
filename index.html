@@ -1,11 +1,14 @@
 <!DOCTYPE html>
-<!-- 就業資訊公告欄 前端｜版本：v2.2.1（搭配 Code.gs v2.2.1 使用）
+<!-- 就業資訊公告欄 前端｜版本：v2.3.0（搭配 Code.gs v2.3.0 使用）
      v2.0.0 初版：置頂公告、逐日日曆頁、縣市／類型篩選
      v2.1.0 縣市標籤旁加註行政區（用猜的會加問號並用虛線標示）；新增月曆導覽，點日期跳到當天
      v2.1.1 手機上比較好用：月曆點日期改成「篩選成當天」，不用再捲動找卡片；再點一次或按「顯示全部」取消
      v2.1.2 沒有公告時，整個「公告」區塊（含標題）完全不顯示，不再留空區塊或提示文字
      v2.2.0 台灣就業通的活動卡片多一行職缺摘要，可展開看各公司職缺（薪資、地點、學歷經歷、人數），不用點進官網
-     v2.2.1 某家公司沒有職缺時不再顯示「0 個職缺」；整場都沒職缺時只列參加公司 -->
+     v2.2.1 某家公司沒有職缺時不再顯示「0 個職缺」；整場都沒職缺時只列參加公司
+     v2.3.0 手機版日期改成每天上方的橫條（滑動時黏在頂端），卡片用滿全寬；電腦版維持日曆頁。
+            頁尾顯示版本編號，網頁和後端版本不一致時會提醒
+     ※ 之後每次改版，記得同步修改下方 FRONT_VER 和 Code.gs 的 APP_VER -->
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
@@ -156,6 +159,7 @@
   .leaf.is-today .mo, .leaf.is-today .wd, .leaf.is-today .rel { color: #D6E2F0; }
   .leaf.is-past { opacity: .55; }
   .leaf.undated .d { font-size: 1.1rem; padding: 14px 0; }
+  .leaf .md { display: none; } /* 手機橫條用的「11/26」 */
 
   .items { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
   .ev {
@@ -188,6 +192,8 @@
   .loading { color: var(--muted); padding: 24px 0; }
 
   footer { margin-top: 48px; font-size: .8rem; color: var(--muted); }
+  footer .ver { margin: 6px 0 0; font-variant-numeric: tabular-nums; }
+  footer .ver.warn { color: #8A1F1F; font-weight: 700; }
 
   /* ---------- 活動：職缺摘要＋展開（v2.2.0） ---------- */
   .jobs { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 10px; }
@@ -221,8 +227,23 @@
 
   @media (max-width: 560px) {
     html { font-size: 16px; }
-    .day { grid-template-columns: 68px 1fr; gap: 10px; }
-    .leaf .d { font-size: 2rem; }
+    /* v2.3.0：手機版日期改成每天上方的橫條，滑動時黏在頂端 */
+    .day { display: block; margin-bottom: 22px; }
+    .leaf {
+      position: sticky; top: 0; z-index: 2;
+      display: flex; align-items: baseline; gap: 8px; text-align: left;
+      background: var(--paper); border: 0; border-bottom: 2px solid var(--navy); border-radius: 0;
+      padding: 8px 2px 6px; margin-bottom: 8px;
+    }
+    .leaf .mo, .leaf .d { display: none; }
+    .leaf .md { display: inline; font-family: "Noto Serif TC", serif; font-weight: 900; font-size: 1.35rem; line-height: 1; color: var(--navy); font-variant-numeric: lining-nums; }
+    .leaf .wd { display: inline; font-size: .85rem; }
+    .leaf .rel { margin: 0 0 0 auto; font-size: .78rem; border: 1px solid var(--navy); border-radius: 999px; padding: 0 8px; }
+    .leaf.is-today { background: var(--navy); border-bottom: 0; border-radius: var(--radius-s); padding: 7px 10px; }
+    .leaf.is-today .md { color: #fff; }
+    .leaf.is-today .rel { color: var(--navy); background: #fff; border-color: #fff; }
+    .leaf.undated .d { display: inline; font-size: 1rem; padding: 0; color: var(--navy); }
+    .leaf.undated br { display: none; }
     .job { grid-template-columns: 1fr; }
     .pay { justify-self: start; margin-top: 2px; }
     .notice details > summary { grid-template-columns: 1fr auto; }
@@ -281,6 +302,7 @@
 
   <footer>
     資料來源：台灣就業通、臺北市就業服務處、新北市人力網。活動內容以主辦單位公告為準，出發前請點「查看詳細資訊」確認。
+    <p class="ver" id="ver"></p>
   </footer>
 </main>
 
@@ -288,6 +310,8 @@
 /* 若這個 HTML 放在 GAS 以外的地方（例如 GitHub Pages、Google Sites 內嵌），
    請填入 Web App 部署網址，例如 https://script.google.com/macros/s/xxxx/exec */
 const API_URL = 'https://script.google.com/macros/s/AKfycbwctcAKI6zZwZ8UfG9tvivFMaQY1pD36ffh_EKmzYRikTEjPLxQ1i_uPQkYU0K6BfjNPg/exec';
+
+const FRONT_VER = 'v2.3.0'; // 網頁版本，改版時記得一起改
 
 const state = { data: null, city: '', type: '', showPast: false, calMonth: '', calFilterDate: null };
 const WEEK = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
@@ -315,6 +339,7 @@ function onData(data) {
   document.getElementById('stamp').textContent =
     '今天 ' + t + (data.updatedAt ? '　活動資料更新於 ' + data.updatedAt : '');
   state.calMonth = (data.today || localToday()).slice(0, 7);
+  renderVersion(data.version);
   renderNotices();
   renderEvents();
 }
@@ -450,6 +475,17 @@ document.getElementById('calGrid').addEventListener('click', ev => {
   renderEvents();
 });
 
+/* ---------- 版本編號（v2.3.0） ---------- */
+function renderVersion(backVer) {
+  const el = document.getElementById('ver');
+  const same = !backVer || backVer === FRONT_VER;
+  el.className = 'ver' + (same ? '' : ' warn');
+  el.textContent = same
+    ? `版本 ${FRONT_VER}`
+    : `網頁 ${FRONT_VER}、後端 ${backVer}：兩個版本不一致，請確認 Code.gs 和 index 都已更新`;
+}
+renderVersion();
+
 function leaf(date, today) {
   if (date === '~') return '<div class="leaf undated"><span class="d">日期<br>待確認</span></div>';
   const d = new Date(date + 'T00:00:00');
@@ -457,6 +493,7 @@ function leaf(date, today) {
   const rel = diff === 0 ? '今天' : diff === 1 ? '明天' : diff > 1 ? diff + ' 天後' : '已結束';
   const cls = diff === 0 ? ' is-today' : diff < 0 ? ' is-past' : '';
   return `<div class="leaf${cls}" aria-label="${date}（${rel}）">
+    <span class="md">${d.getMonth() + 1}/${d.getDate()}</span>
     <span class="mo">${d.getMonth() + 1}月</span>
     <span class="d">${d.getDate()}</span>
     <span class="wd">${WEEK[d.getDay()]}</span>
@@ -585,6 +622,7 @@ function fmtShort(ymd) {
 const DEMO = {
   today: '2026-09-24',
   updatedAt: '2026-09-24 07:00',
+  version: 'v2.3.0',
   notices: [
     { pinned: true, date: '2026-09-24', title: '10/17 雙北同日舉辦就業博覽會', content: '臺北場在臺北車站一樓大廳，新北場在三重綜合體育館。有興趣參加的朋友，請先和個管員討論要投遞的職缺並準備履歷。', url: '' },
     { pinned: false, date: '2026-09-20', title: '求職防詐提醒', content: '面試時不要交出存摺、提款卡或證件正本。遇到可疑狀況請撥 165 反詐騙專線。', url: '' },
