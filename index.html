@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 就業資訊公告欄 前端｜版本：v2.3.0（搭配 Code.gs v2.3.0 使用）
+<!-- 就業資訊公告欄 前端｜版本：v2.3.1（搭配 Code.gs v2.3.1 使用）
      v2.0.0 初版：置頂公告、逐日日曆頁、縣市／類型篩選
      v2.1.0 縣市標籤旁加註行政區（用猜的會加問號並用虛線標示）；新增月曆導覽，點日期跳到當天
      v2.1.1 手機上比較好用：月曆點日期改成「篩選成當天」，不用再捲動找卡片；再點一次或按「顯示全部」取消
@@ -8,6 +8,8 @@
      v2.2.1 某家公司沒有職缺時不再顯示「0 個職缺」；整場都沒職缺時只列參加公司
      v2.3.0 手機版日期改成每天上方的橫條（滑動時黏在頂端），卡片用滿全寬；電腦版維持日曆頁。
             頁尾顯示版本編號，網頁和後端版本不一致時會提醒
+     v2.3.1 卡片再精簡：地址改成地點旁的地圖小圖示（點了一樣開 Google 地圖），拿掉「n 家廠商」和承辦單位；
+            「查看詳細資訊」併到時間地點那一行；地點尾巴的「[」等殘字清掉
      ※ 之後每次改版，記得同步修改下方 FRONT_VER 和 Code.gs 的 APP_VER -->
 <html lang="zh-Hant">
 <head>
@@ -135,7 +137,7 @@
   .cal-filter button:hover { background: var(--paper); }
 
   /* ---------- 活動：日曆頁 ---------- */
-  .day { display: grid; grid-template-columns: 96px 1fr; gap: 16px; margin-bottom: 18px; }
+  .day { display: grid; grid-template-columns: 84px 1fr; gap: 16px; margin-bottom: 18px; }
   .leaf {
     align-self: start;
     position: sticky; top: 12px;
@@ -151,17 +153,17 @@
   .leaf .d {
     display: block;
     font-family: "Noto Serif TC", serif; font-weight: 900;
-    font-size: 2.6rem; line-height: 1.05; font-variant-numeric: lining-nums;
+    font-size: 2.2rem; line-height: 1.05; font-variant-numeric: lining-nums;
   }
   .leaf .wd { display: block; font-size: .8rem; color: var(--muted); }
-  .leaf .rel { display: block; margin-top: 6px; font-size: .78rem; font-weight: 700; color: var(--navy); }
+  .leaf .rel { display: block; margin-top: 4px; font-size: .78rem; font-weight: 700; color: var(--navy); }
   .leaf.is-today { background: var(--navy); color: #fff; }
   .leaf.is-today .mo, .leaf.is-today .wd, .leaf.is-today .rel { color: #D6E2F0; }
   .leaf.is-past { opacity: .55; }
   .leaf.undated .d { font-size: 1.1rem; padding: 14px 0; }
   .leaf .md { display: none; } /* 手機橫條用的「11/26」 */
 
-  .items { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .items { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; align-self: start; } /* v2.3.1 卡片不要被日曆頁撐高 */
   .ev {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -182,7 +184,14 @@
   .ev .meta { margin: 0; font-size: .9rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 16px; }
   .ev .meta a { font-weight: 500; }
   .ev .meta + .meta { margin-top: 2px; }
-  .ev .addr a { color: var(--muted); text-decoration-style: dotted; font-weight: 400; }
+  .ev .place { display: inline-flex; align-items: center; gap: 2px; }
+  .ev .map {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; margin: -4px -2px -4px 0; border-radius: 50%;
+    color: var(--navy);
+  }
+  .ev .map:hover { background: var(--tpe-soft); }
+  .ev .map svg { width: 17px; height: 17px; }
 
   .empty, .error {
     background: var(--surface); border: 1px dashed var(--line); border-radius: var(--radius-m);
@@ -311,7 +320,7 @@
    請填入 Web App 部署網址，例如 https://script.google.com/macros/s/xxxx/exec */
 const API_URL = 'https://script.google.com/macros/s/AKfycbwctcAKI6zZwZ8UfG9tvivFMaQY1pD36ffh_EKmzYRikTEjPLxQ1i_uPQkYU0K6BfjNPg/exec';
 
-const FRONT_VER = 'v2.3.0'; // 網頁版本，改版時記得一起改
+const FRONT_VER = 'v2.3.1'; // 網頁版本，改版時記得一起改
 
 const state = { data: null, city: '', type: '', showPast: false, calMonth: '', calFilterDate: null };
 const WEEK = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
@@ -518,16 +527,28 @@ function item(e, past) {
     <h3>${esc(e.title)}</h3>
     <p class="meta">
       ${e.time ? `<span>時間 ${esc(e.time)}</span>` : ''}
-      ${e.place ? `<span>地點 ${esc(e.place)}</span>` : ''}
-      ${e.firms ? `<span>${esc(e.firms)} 家廠商</span>` : ''}
-    </p>
-    ${e.address ? `<p class="meta addr"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.address)}" target="_blank" rel="noopener">${esc(e.address)}</a></p>` : ''}
-    <p class="meta">
-      ${e.org ? `<span>承辦 ${esc(e.org)}</span>` : ''}
+      ${placeHtml(e)}
       ${e.url ? `<a href="${attr(e.url)}" target="_blank" rel="noopener">查看詳細資訊</a>` : ''}
     </p>
     ${jobsBlock(e)}
   </li>`;
+}
+
+/* ---------- 地點＋地圖小圖示（v2.3.1） ---------- */
+const PIN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>';
+
+function cleanPlace(s) {
+  // 地點尾巴可能殘留「[」「(」「【」等（官網的「[詳細地址]」被切掉一半），清掉
+  return String(s || '').replace(/[\s\[［【(（]+$/, '').trim();
+}
+
+function placeHtml(e) {
+  const place = cleanPlace(e.place);
+  const q = e.address || (place ? (e.city || '') + place : '');  // 沒地址就用縣市＋地點名稱搜尋
+  if (!place && !q) return '';
+  const label = e.address ? `在 Google 地圖開啟：${e.address}` : `在 Google 地圖搜尋：${q}`;
+  const pin = q ? `<a class="map" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}" target="_blank" rel="noopener" aria-label="${esc(label)}" title="${esc(label)}">${PIN_SVG}</a>` : '';
+  return `<span class="place">地點 ${esc(place || e.address)}${pin}</span>`;
 }
 
 /* ---------- 職缺摘要＋展開（v2.2.0） ---------- */
@@ -622,7 +643,7 @@ function fmtShort(ymd) {
 const DEMO = {
   today: '2026-09-24',
   updatedAt: '2026-09-24 07:00',
-  version: 'v2.3.0',
+  version: 'v2.3.1',
   notices: [
     { pinned: true, date: '2026-09-24', title: '10/17 雙北同日舉辦就業博覽會', content: '臺北場在臺北車站一樓大廳，新北場在三重綜合體育館。有興趣參加的朋友，請先和個管員討論要投遞的職缺並準備履歷。', url: '' },
     { pinned: false, date: '2026-09-20', title: '求職防詐提醒', content: '面試時不要交出存摺、提款卡或證件正本。遇到可疑狀況請撥 165 反詐騙專線。', url: '' },
