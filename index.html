@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<!-- 就業資訊公告欄 前端｜版本：v2.2.0（搭配 Code.gs v2.2.0 使用）
+<!-- 就業資訊公告欄 前端｜版本：v2.2.1（搭配 Code.gs v2.2.1 使用）
      v2.0.0 初版：置頂公告、逐日日曆頁、縣市／類型篩選
      v2.1.0 縣市標籤旁加註行政區（用猜的會加問號並用虛線標示）；新增月曆導覽，點日期跳到當天
      v2.1.1 手機上比較好用：月曆點日期改成「篩選成當天」，不用再捲動找卡片；再點一次或按「顯示全部」取消
      v2.1.2 沒有公告時，整個「公告」區塊（含標題）完全不顯示，不再留空區塊或提示文字
-     v2.2.0 台灣就業通的活動卡片多一行職缺摘要，可展開看各公司職缺（薪資、地點、學歷經歷、人數），不用點進官網 -->
+     v2.2.0 台灣就業通的活動卡片多一行職缺摘要，可展開看各公司職缺（薪資、地點、學歷經歷、人數），不用點進官網
+     v2.2.1 某家公司沒有職缺時不再顯示「0 個職缺」；整場都沒職缺時只列參加公司 -->
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
@@ -508,14 +509,16 @@ function jobsBlock(e) {
     return nums.length ? Math.min(...nums).toLocaleString('en-US') : '';
   };
   const pays = [['M', low('M')], ['H', low('H')]].filter(p => p[1]).map(p => `${PAY_LABEL[p[0]]} <strong>${p[1]}</strong> 起`);
-  const sum = `<strong>${cos.length}</strong> 家公司、<strong>${all.length}</strong> 個職缺${pays.length ? '，' + pays.join('、') : ''}`;
+  const sum = all.length
+    ? `<strong>${cos.length}</strong> 家公司、<strong>${all.length}</strong> 個職缺${pays.length ? '，' + pays.join('、') : ''}`
+    : `<strong>${cos.length}</strong> 家公司參加，職缺明細請看官網`;
 
   const req = (edu, exp) => (edu === '不拘' && exp === '不拘') ? '學歷經歷不拘'
     : [edu && `學歷${edu}`, exp && `經歷${exp}`].filter(Boolean).join('、');
 
   const list = cos.map(([name, ind, emp, jobs]) => `
     <section class="co">
-      <div class="co-head"><span class="co-name">${esc(name)}</span>${ind ? `<span class="co-ind">${esc(ind)}</span>` : ''}<span class="co-n">${(jobs || []).length} 個職缺</span></div>
+      <div class="co-head"><span class="co-name">${esc(name)}</span>${ind ? `<span class="co-ind">${esc(ind)}</span>` : ''}${(jobs || []).length ? `<span class="co-n">${jobs.length} 個職缺</span>` : ''}</div>
       ${(jobs || []).map(([t, k, pay, loc, edu, exp, n, hire]) => {
         const title = emp && hire
           ? `<a href="${JOB_URL}&EMPLOYER_ID=${encodeURIComponent(emp)}&HIRE_ID=${encodeURIComponent(hire)}" target="_blank" rel="noopener">${esc(t)}</a>`
@@ -538,7 +541,7 @@ function jobsBlock(e) {
   return `<div class="jobs">
     <p class="jobs-sum">${sum}</p>
     <details>
-      <summary><span class="chev" aria-hidden="true">›</span>看 ${cos.length} 家公司的職缺</summary>
+      <summary><span class="chev" aria-hidden="true">›</span>${all.length ? `看 ${cos.length} 家公司的職缺` : `看 ${cos.length} 家參加公司`}</summary>
       ${list}
       <p class="jobs-foot">${notes.join('<br>')}</p>
     </details>
